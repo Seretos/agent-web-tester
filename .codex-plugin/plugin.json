@@ -1,0 +1,12 @@
+{
+  "name": "agent-web-tester",
+  "version": "0.0.0",
+  "description": "Assistant for creating E2E web tests: scans pages into a Gherkin step catalog and authors/records scenarios that run deterministically via playwright-bdd in the pipeline.",
+  "author": { "name": "Arne von Appen" },
+  "repository": "https://github.com/Seretos/agent-web-tester",
+  "skills": "./skills",
+  "interface": {
+    "displayName": "Agent Web Tester",
+    "shortDescription": "Assistant for creating E2E web tests: scans pages into a Gherkin step catalog and authors/records scenarios that run deterministically via playwright-bdd in the pipeline."
+  }
+}
