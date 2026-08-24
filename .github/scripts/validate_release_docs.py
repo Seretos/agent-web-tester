@@ -204,22 +204,180 @@ def check_skill_frontmatter_sweep(failures):
             failures.append(f"{rel(path)}: {msg}")
 
 
+# A bash/heredoc opener -- '<<EOF', "<<'EOF'", '<<-EOF', or a bare EOF
+# terminator line -- the shape of the old single-skill inline-heredoc step
+# this check exists to catch coming back.
+_HEREDOC_MARKER_RE = re.compile(r"<<-?['\"]?\w+['\"]?|^\s*EOF\s*$", re.MULTILINE)
+
+_STEPS_KEY_RE = re.compile(r"^([ \t]*)steps:\s*$")
+_LIST_ITEM_RE = re.compile(r"^([ \t]*)-\s")
+
+# A step's 'if:' key with a literal 'false' (bare or the '${{ false }}'
+# expression form), whitespace around the value tolerated. Only this exact
+# literal disqualifies a step -- a real conditional expression, 'if: true',
+# or no 'if:' at all all count as live, same as before.
+_IF_FALSE_RE = re.compile(
+    r"^if:\s*(false|\$\{\{\s*false\s*\}\})\s*$", re.IGNORECASE
+)
+
+
+def _step_blocks(text):
+    """Split a GitHub Actions ``steps:`` list into per-step text blocks, each
+    starting at its own top-level list-item line and running to the line
+    before the next one (or EOF).
+
+    A real workflow step is allowed to start with ANY key -- '- run:',
+    '- id:', '- if:', '- uses:', '- name:', '- with:', ... -- 'name:' is
+    optional, so boundaries are detected structurally rather than via an
+    allowlist of specific key names: find the 'steps:' key, then take the
+    indentation of the first '- ' list item that follows it as the
+    steps-list's own indentation level (derived from the file itself, never
+    hardcoded), and treat every line at exactly that indentation starting
+    with '- ' as a new step boundary, regardless of which key follows the
+    dash. Lets a check ask "do these two things co-occur within the same
+    step" instead of "anywhere in the whole file". Falls back to returning
+    the whole text as a single block when no 'steps:' key (or no list item
+    under it) is found."""
+    lines = text.split("\n")
+
+    steps_line_idx = None
+    for i, line in enumerate(lines):
+        if _STEPS_KEY_RE.match(line):
+            steps_line_idx = i
+            break
+    if steps_line_idx is None:
+        return [text]
+
+    item_indent = None
+    for line in lines[steps_line_idx + 1:]:
+        m = _LIST_ITEM_RE.match(line)
+        if m:
+            item_indent = m.group(1)
+            break
+    if item_indent is None:
+        return [text]
+
+    item_start_re = re.compile(r"^" + re.escape(item_indent) + r"-\s")
+    starts = [
+        i for i, line in enumerate(lines)
+        if i > steps_line_idx and item_start_re.match(line)
+    ]
+    if not starts:
+        return [text]
+
+    blocks = []
+    for i, start in enumerate(starts):
+        end = starts[i + 1] if i + 1 < len(starts) else len(lines)
+        blocks.append("\n".join(lines[start:end]))
+    return blocks
+
+
+def _step_disabled(block):
+    """True if this step's own block carries a sibling 'if:' key whose value
+    is the literal 'false' or '${{ false }}' (whitespace-tolerant) -- a step
+    disabled this way never actually executes in CI, so its 'run:' must not
+    count as live. Only that literal disqualifies; a real conditional
+    expression, 'if: true', or no 'if:' at all are all treated as live, same
+    as before. A commented-out 'if: false' line does not disqualify -- it
+    is not actually applied."""
+    for line in block.split("\n"):
+        stripped = re.sub(r"^-\s*", "", line.strip())
+        if stripped.startswith("#"):
+            continue
+        if _IF_FALSE_RE.match(stripped):
+            return True
+    return False
+
+
+def _block_run_invokes(block, literal):
+    """True if this step's block contains a non-commented 'run:' line
+    invoking ``literal``, either on the same line (``run: <cmd>``) or, for a
+    block-scalar step (``run: |``/``run: >``), on a following indented line
+    belonging to that same block. Unlike a bare substring search, a
+    '# run: ...  <literal>' comment line does not count, and neither does a
+    commented-out line inside an otherwise-live block."""
+    lines = block.split("\n")
+    for i, line in enumerate(lines):
+        stripped = re.sub(r"^-\s*", "", line.strip())
+        if stripped.startswith("#"):
+            continue
+        if not stripped.startswith("run:"):
+            continue
+        if literal in stripped:
+            return True
+
+        # Block-scalar 'run: |' step: the command lives on the indented
+        # line(s) that follow, not on the 'run:' line itself. Scan forward
+        # until the indentation dedents back to (or below) the 'run:'
+        # line's own indentation -- that marks either a sibling step key
+        # or the start of the next step.
+        run_indent = len(line) - len(line.lstrip(" "))
+        for follow in lines[i + 1:]:
+            if follow.strip() == "":
+                continue
+            follow_indent = len(follow) - len(follow.lstrip(" "))
+            if follow_indent <= run_indent:
+                break
+            follow_stripped = follow.strip()
+            if follow_stripped.startswith("#"):
+                continue
+            if literal in follow_stripped:
+                return True
+    return False
+
+
+def _active_run_invokes(text, literal):
+    """True if some step, not disqualified by a sibling 'if: false'/
+    'if: ${{ false }}' on that same step, has a non-commented 'run:' line
+    invoking ``literal`` (see ``_block_run_invokes`` for the per-step
+    matching rules). Scans per step block (see ``_step_blocks``) so a
+    disabled step's 'run:' does not count, while a different, non-disabled
+    step elsewhere in the file can still satisfy the check."""
+    for block in _step_blocks(text):
+        if _step_disabled(block):
+            continue
+        if _block_run_invokes(block, literal):
+            return True
+    return False
+
+
+def lint_workflow_wiring_failures(text):
+    """The pure text -> failure-message-list core of
+    ``check_lint_workflow_wiring``, split out (mirroring
+    ``frontmatter_failures(text, name)`` above) so it is directly
+    unit-testable against fixture text without touching disk. Returns
+    failure strings with no path prefix -- the caller owns that."""
+    failures = []
+
+    if not _active_run_invokes(text, "validate_release_docs.py"):
+        failures.append(
+            "no live (non-commented) 'run:' step invokes 'validate_release_docs.py'"
+        )
+
+    # The real regression this guards against is the *old hardcoded
+    # single-skill heredoc step* coming back, not the path string existing
+    # anywhere in the file for an unrelated reason -- so only fire when the
+    # literal path co-occurs with a heredoc construct inside the same step.
+    for block in _step_blocks(text):
+        if "skills/web-tester/SKILL.md" in block and _HEREDOC_MARKER_RE.search(block):
+            failures.append(
+                "a step still hardcodes 'skills/web-tester/SKILL.md' inside an inline heredoc -- "
+                "the old single-skill heredoc step must not come back; frontmatter validation must "
+                "cover every shipped skill via validate_release_docs.py instead"
+            )
+            break
+
+    return failures
+
+
 def check_lint_workflow_wiring(failures):
     text = _read_text(LINT_YML)
     if text is None:
         failures.append(f"{rel(LINT_YML)}: file not found")
         return
 
-    if "validate_release_docs.py" not in text:
-        failures.append(
-            f"{rel(LINT_YML)}: no live step invokes 'validate_release_docs.py'"
-        )
-
-    if "skills/web-tester/SKILL.md" in text:
-        failures.append(
-            f"{rel(LINT_YML)}: still hardcodes 'skills/web-tester/SKILL.md' alone -- "
-            "frontmatter validation must cover every shipped skill, not just web-tester"
-        )
+    for msg in lint_workflow_wiring_failures(text):
+        failures.append(f"{rel(LINT_YML)}: {msg}")
 
 
 # A small fixture table exercising frontmatter_failures(text, label) in
@@ -264,6 +422,173 @@ def check_frontmatter_failures_fixture_table(failures):
         failures.append("has_crlf fixture: expected True for a CRLF-containing byte string, got False")
     if has_crlf(b"---\nname: web-tester\ndescription: hi\n---\n"):
         failures.append("has_crlf fixture: expected False for an LF-only byte string, got True")
+
+
+# A fixture table exercising lint_workflow_wiring_failures(text) in
+# isolation. Regression coverage for the bug this file's own history caught:
+# a bare substring search would let a *commented-out* invocation satisfy the
+# "is it wired" check, and would ban the literal path string
+# 'skills/web-tester/SKILL.md' from appearing anywhere at all, instead of
+# only when the old single-skill inline-heredoc step has actually come back.
+LINT_WIRING_FIXTURES = [
+    (
+        "live run: step wires the validator -- zero failures",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n",
+        [],
+    ),
+    (
+        "commented-out run: line must NOT count as wired",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    # run: python3 .github/scripts/validate_release_docs.py\n",
+        ["no live (non-commented) 'run:' step invokes 'validate_release_docs.py'"],
+    ),
+    (
+        "SKILL.md path mentioned with no heredoc anywhere -- must NOT fire",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n"
+        "  - name: Some other step\n"
+        "    run: echo 'see skills/web-tester/SKILL.md for details'\n",
+        [],
+    ),
+    (
+        "SKILL.md path + heredoc marker in the SAME step -- must fire",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n"
+        "  - name: Old single-skill sweep\n"
+        "    run: |\n"
+        "      cat <<'EOF' > /tmp/check.py\n"
+        "      path = 'skills/web-tester/SKILL.md'\n"
+        "      EOF\n",
+        [
+            "a step still hardcodes 'skills/web-tester/SKILL.md' inside an inline heredoc",
+        ],
+    ),
+    (
+        "SKILL.md path in one step, unrelated heredoc in ANOTHER step -- must NOT fire",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n"
+        "  - name: Mentions the path\n"
+        "    run: echo 'skills/web-tester/SKILL.md'\n"
+        "  - name: Unrelated heredoc step\n"
+        "    run: |\n"
+        "      cat <<'EOF' > /tmp/notes.txt\n"
+        "      unrelated content\n"
+        "      EOF\n",
+        [],
+    ),
+    (
+        "multi-line 'run: |' block with the invocation on a following indented "
+        "line -- must be recognized as live-wired",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    run: |\n"
+        "      python3 .github/scripts/validate_release_docs.py\n",
+        [],
+    ),
+    (
+        "multi-line 'run: |' block entirely commented out -- must NOT count as wired",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    # run: |\n"
+        "    #   python3 .github/scripts/validate_release_docs.py\n",
+        ["no live (non-commented) 'run:' step invokes 'validate_release_docs.py'"],
+    ),
+    (
+        "SKILL.md path in one step, NEXT step starts with '- run:' (no 'name:') "
+        "and has an unrelated heredoc -- steps must not be merged, must NOT fire "
+        "(regression coverage for a step-boundary regex that only recognized "
+        "'- name:'/'- uses:' as a step start)",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n"
+        "  - name: Mentions the path\n"
+        "    run: echo 'skills/web-tester/SKILL.md'\n"
+        "  - run: |\n"
+        "      cat <<'EOF' > /tmp/notes.txt\n"
+        "      unrelated content\n"
+        "      EOF\n",
+        [],
+    ),
+    (
+        "SKILL.md path + heredoc marker in the SAME step, that step starting "
+        "with '- run:' (no 'name:') -- must still fire (proves the boundary "
+        "fix isn't overly permissive: a nameless step is still its own block)",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n"
+        "  - run: |\n"
+        "      cat <<'EOF' > /tmp/check.py\n"
+        "      path = 'skills/web-tester/SKILL.md'\n"
+        "      EOF\n",
+        [
+            "a step still hardcodes 'skills/web-tester/SKILL.md' inside an inline heredoc",
+        ],
+    ),
+    (
+        "the only 'run:' invoking the validator sits in a step carrying "
+        "'if: false', no other live invocation exists -- must NOT count as "
+        "wired (a disabled step never executes in CI)",
+        "steps:\n"
+        "  - name: Validate release docs (disabled)\n"
+        "    if: false\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n",
+        ["no live (non-commented) 'run:' step invokes 'validate_release_docs.py'"],
+    ),
+    (
+        "the only 'run:' invoking the validator sits in a step carrying "
+        "'if: ${{ false }}' -- same disqualification as the bare 'false' form",
+        "steps:\n"
+        "  - name: Validate release docs (disabled)\n"
+        "    if: ${{ false }}\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n",
+        ["no live (non-commented) 'run:' step invokes 'validate_release_docs.py'"],
+    ),
+    (
+        "'if: false' disables one step's invocation, but a DIFFERENT, "
+        "non-disabled step also invokes the validator -- must count as wired "
+        "(disqualification is scoped to the disabled step only)",
+        "steps:\n"
+        "  - name: Validate release docs (disabled)\n"
+        "    if: false\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n"
+        "  - name: Validate release docs (live)\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n",
+        [],
+    ),
+    (
+        "a real conditional expression on 'if:' (not the literal 'false') "
+        "must NOT disqualify the step -- still counts as wired",
+        "steps:\n"
+        "  - name: Validate release docs\n"
+        "    if: github.event_name == 'push'\n"
+        "    run: python3 .github/scripts/validate_release_docs.py\n",
+        [],
+    ),
+]
+
+
+def check_lint_wiring_fixture_table(failures):
+    for case_label, text, expected_substrings in LINT_WIRING_FIXTURES:
+        got = lint_workflow_wiring_failures(text)
+        if not expected_substrings:
+            if got:
+                failures.append(
+                    f"lint_workflow_wiring_failures fixture {case_label!r}: expected zero failures, "
+                    f"got {got!r}"
+                )
+            continue
+        for expected_substring in expected_substrings:
+            if not any(expected_substring in msg for msg in got):
+                failures.append(
+                    f"lint_workflow_wiring_failures fixture {case_label!r}: expected a failure "
+                    f"containing {expected_substring!r}, got {got!r}"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +871,7 @@ def main():
     check_skill_frontmatter_sweep(failures)
     check_frontmatter_failures_fixture_table(failures)
     check_lint_workflow_wiring(failures)
+    check_lint_wiring_fixture_table(failures)
     check_description_md(failures)
     check_plugin_json_description(failures)
     check_readme_md(failures)
