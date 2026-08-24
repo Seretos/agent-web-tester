@@ -6,3 +6,4 @@ Thumbs.db
 .adev/
 __pycache__/
 .serena/
+e2e/
