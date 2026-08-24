@@ -35,6 +35,21 @@ so `.feature` files run as `cd e2e && npx bddgen && npx playwright test
 --config playwright.config.ts`. See `docs/examples/scaffold-bdd-run.md` for
 the exact files it produces.
 
+## Recording a scenario: delegate to record-scenario
+
+When the user wants to turn a real, live click-through into a `.feature`
+file — "record this flow", "turn my clicks into a test", "I just did the
+checkout, can you make that a scenario" — delegate to the `record-scenario`
+skill (`skills/record-scenario/SKILL.md`) rather than transcribing the
+session by hand. It never records through the `playwright` MCP browser
+itself: it prints a companion `npx playwright codegen` command for the user
+to run in their own terminal, reads the resulting recording out of #3's
+`e2e/` subproject, prunes it to meaningful actions, and maps each one onto
+`e2e/catalog.md` — reusing a matching phrase where one exists, minting a
+new one (and a new row) where it doesn't — after one explicit confirmation
+covering the whole write. See `docs/examples/record-scenario-run.md` for
+the exact files one recording run produces.
+
 ## Overview
 
 - **Scan first** — `page-scanner` builds/updates the reusable dictionary:
@@ -42,10 +57,11 @@ the exact files it produces.
   phrase catalog `e2e/catalog.md`.
 - **Scaffold once** — `scaffold-bdd` makes that catalog runnable in CI,
   without touching the catalog's contents.
-- **Author scenarios** (a future package) will read `e2e/catalog.md` and
-  write `e2e/features/*.feature`, one Given/When/Then line per phrase.
+- **Record scenarios** — `record-scenario` turns a real, recorded browser
+  session into a `.feature` file, reusing catalog steps where a recorded
+  action matches one and minting new ones where it doesn't.
 
 This skill's own job today is routing: point the user at `page-scanner` for
-scanning a page into the catalog, and at `scaffold-bdd` for wiring up the
-runner. Authoring `.feature` files from the catalog is a separate,
-not-yet-built package.
+scanning a page into the catalog, at `scaffold-bdd` for wiring up the
+runner, and at `record-scenario` for turning a recorded session into a
+scenario.

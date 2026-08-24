@@ -43,3 +43,6 @@ jobs:
 
       - name: Validate author-scenario skill package
         run: python3 .github/scripts/validate_author_scenario.py
+
+      - name: Validate record-scenario skill package
+        run: python3 .github/scripts/validate_record.py
