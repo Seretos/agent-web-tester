@@ -1,6 +1,6 @@
 ---
 name: web-tester
-description: Assistant for creating E2E web tests: scans pages into a Gherkin step catalog and authors/records scenarios that run deterministically via playwright-bdd in the pipeline.
+description: Assistant for creating E2E web tests: scans pages into a Gherkin step catalog and authors scenarios that run deterministically via playwright-bdd in the pipeline.
 ---
 
 # web-tester
@@ -42,10 +42,11 @@ the exact files it produces.
   phrase catalog `e2e/catalog.md`.
 - **Scaffold once** — `scaffold-bdd` makes that catalog runnable in CI,
   without touching the catalog's contents.
-- **Author scenarios** (a future package) will read `e2e/catalog.md` and
-  write `e2e/features/*.feature`, one Given/When/Then line per phrase.
+- **Author scenarios** — a separate skill reads `e2e/catalog.md` and writes
+  `e2e/features/*.feature`, one Given/When/Then line per phrase.
 
 This skill's own job today is routing: point the user at `page-scanner` for
 scanning a page into the catalog, and at `scaffold-bdd` for wiring up the
-runner. Authoring `.feature` files from the catalog is a separate,
-not-yet-built package.
+runner. Authoring `.feature` files from the catalog is handled by a
+separate skill in this plugin, discovered by its own frontmatter
+description rather than routed from here.

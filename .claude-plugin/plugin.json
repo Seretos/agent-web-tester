@@ -1,6 +1,6 @@
 {
   "name": "agent-web-tester",
-  "description": "Assistant for creating E2E web tests: scans pages into a Gherkin step catalog and authors/records scenarios that run deterministically via playwright-bdd in the pipeline.",
+  "description": "Assistant for creating E2E web tests: scans pages into a Gherkin step catalog and authors scenarios that run deterministically via playwright-bdd in the pipeline.",
   "version": "0.0.0",
   "author": { "name": "Arne von Appen" },
   "dependencies": [],
