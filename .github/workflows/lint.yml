@@ -40,3 +40,6 @@ jobs:
 
       - name: Validate scaffold-bdd skill package
         run: python3 .github/scripts/validate_scaffold.py
+
+      - name: Validate author-scenario skill package
+        run: python3 .github/scripts/validate_author_scenario.py
