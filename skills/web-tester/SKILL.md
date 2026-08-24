@@ -24,16 +24,28 @@ load them (e.g. Codex), follow the same contract inline instead —
 `agents/page-scanner.md` is the source of the rules and
 `docs/examples/todomvc-scan.md` is the output template.
 
-(Skill body — replace this with the actual instructions for Claude.
+## Making the catalog runnable: delegate to scaffold-bdd
 
-Typical structure:
+Once `e2e/catalog.md` exists, the scenarios that will read it need
+somewhere to run deterministically, with zero LLM involvement. Delegate
+that to the `scaffold-bdd` skill (`skills/scaffold-bdd/SKILL.md`): it
+scaffolds a self-contained `e2e/` subproject — `playwright-bdd` config, a
+demo canary, and (when safe) CI wiring — into the target repo under test,
+so `.feature` files run as `cd e2e && npx bddgen && npx playwright test
+--config playwright.config.ts`. See `docs/examples/scaffold-bdd-run.md` for
+the exact files it produces.
 
-1. **What this skill is for** — one paragraph describing the situations where
-   Claude should reach for the skill.
-2. **Mental model** — the concepts Claude needs to hold in mind: entities,
-   their relationships, the lifecycle.
-3. **Tool inventory** — if this skill drives an MCP, list the tools and what
-   each one is good for. If it's a pure-doc skill, describe the workflow.
-4. **Patterns and recipes** — concrete examples of how to combine the tools
-   or follow the workflow for common requests.
-5. **Pitfalls** — what to avoid, what looks similar but isn't, edge cases.)
+## Overview
+
+- **Scan first** — `page-scanner` builds/updates the reusable dictionary:
+  `e2e/pages/*.ts` page objects, `e2e/steps/*.ts` step definitions, and the
+  phrase catalog `e2e/catalog.md`.
+- **Scaffold once** — `scaffold-bdd` makes that catalog runnable in CI,
+  without touching the catalog's contents.
+- **Author scenarios** (a future package) will read `e2e/catalog.md` and
+  write `e2e/features/*.feature`, one Given/When/Then line per phrase.
+
+This skill's own job today is routing: point the user at `page-scanner` for
+scanning a page into the catalog, and at `scaffold-bdd` for wiring up the
+runner. Authoring `.feature` files from the catalog is a separate,
+not-yet-built package.

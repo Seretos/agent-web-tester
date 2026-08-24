@@ -37,3 +37,6 @@ jobs:
 
       - name: Validate page-scanner subagent package
         run: python3 .github/scripts/validate_agents.py
+
+      - name: Validate scaffold-bdd skill package
+        run: python3 .github/scripts/validate_scaffold.py

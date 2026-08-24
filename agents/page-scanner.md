@@ -111,13 +111,13 @@ locator, and one locator maps to exactly one phrase.
 
 ## Hard rule: playwright-bdd detection
 
-- D2: Detection succeeds if the root package.json lists playwright-bdd under dependencies or devDependencies, or a root playwright.config file contains playwright-bdd or defineBddConfig.
+- D2: Detection succeeds if the root package.json or e2e/package.json lists playwright-bdd under dependencies or devDependencies, or a root or e2e/ playwright.config file contains playwright-bdd or defineBddConfig.
 
 Both signals are `Read`/`Grep` checks only — never run an install, never
-run a scaffold yourself. If detection fails (no root `package.json`, or a
-root `package.json` that satisfies neither signal, or no matching
-`playwright.config.*`), still write all three artifact kinds, and print
-this exact notice in the summary:
+run a scaffold yourself. If detection fails (neither the root nor
+`e2e/package.json` satisfies the dependency signal, and no matching root or
+`e2e/` `playwright.config.*` satisfies the config signal), still write all
+three artifact kinds, and print this exact notice in the summary:
 
 - D1: playwright-bdd not detected — run scaffold-bdd (#3) to make these runnable.
 

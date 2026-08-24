@@ -84,7 +84,7 @@ PINNED_LITERALS = {
     ],
     "## Hard rule: playwright-bdd detection": [
         ("D1", "playwright-bdd not detected — run scaffold-bdd (#3) to make these runnable."),
-        ("D2", "Detection succeeds if the root package.json lists playwright-bdd under dependencies or devDependencies, or a root playwright.config file contains playwright-bdd or defineBddConfig."),
+        ("D2", "Detection succeeds if the root package.json or e2e/package.json lists playwright-bdd under dependencies or devDependencies, or a root or e2e/ playwright.config file contains playwright-bdd or defineBddConfig."),
     ],
 }
 
