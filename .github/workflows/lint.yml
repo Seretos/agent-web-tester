@@ -31,3 +31,6 @@ jobs:
               print("::error::SKILL.md frontmatter missing 'name' or 'description'"); sys.exit(1)
           print("SKILL.md: OK")
           EOF
+
+      - name: Validate manifest parity
+        run: python3 .github/scripts/validate_manifests.py
