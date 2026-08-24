@@ -82,6 +82,12 @@ jobs:
           # description.md ships onto the orphan release branch so the dispatch
           # payload's description_url resolves at the tagged commit.
           [ -f description.md ] && cp -a description.md "$STAGE/" || true
+          # agents/ ships so Claude Code's convention-discovered subagent
+          # loading (<plugin-root>/agents/*.md) finds page-scanner.md.
+          [ -d agents ] && cp -a agents "$STAGE/" || true
+          # docs/ ships so page-scanner.md's worked-example link resolves
+          # for installed users, not just in this source checkout.
+          [ -d docs ] && cp -a docs "$STAGE/" || true
 
           mkdir -p dist
           ZIPNAME="agent-web-tester-${{ inputs.version }}.zip"
