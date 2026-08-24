@@ -8,5 +8,11 @@
   "interface": {
     "displayName": "Agent Web Tester",
     "shortDescription": "Assistant for creating E2E web tests: scans pages into a Gherkin step catalog and authors/records scenarios that run deterministically via playwright-bdd in the pipeline."
+  },
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.79", "--browser", "chromium"]
+    }
   }
 }

@@ -3,3 +3,6 @@
 .DS_Store
 Thumbs.db
 *.log
+.adev/
+__pycache__/
+.serena/
