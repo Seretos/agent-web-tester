@@ -5,6 +5,25 @@ description: Assistant for creating E2E web tests: scans pages into a Gherkin st
 
 # web-tester
 
+## Scanning a page: delegate to the page-scanner subagent
+
+When the user wants to turn a live page or component into reusable,
+readable steps — "scan this page", "catalog the login form", "build the
+step dictionary for the checkout flow" — delegate to the `page-scanner`
+subagent (`agents/page-scanner.md`) rather than driving the `playwright`
+MCP tools directly from this skill. It scans the page's accessibility tree
+and writes/updates the dictionary this skill (and later authoring skills)
+consume: `e2e/pages/*.ts` page objects, `e2e/steps/*.ts` playwright-bdd
+step definitions, and `e2e/catalog.md` — all in the target repo under
+test, not in this plugin. See `docs/examples/todomvc-scan.md` for a worked
+example of the shape it produces.
+
+This delegation is Claude-Code-specific: subagents (`agents/*.md`) are a
+Claude-Code-only, convention-discovered feature, so on a host that doesn't
+load them (e.g. Codex), follow the same contract inline instead —
+`agents/page-scanner.md` is the source of the rules and
+`docs/examples/todomvc-scan.md` is the output template.
+
 (Skill body — replace this with the actual instructions for Claude.
 
 Typical structure:
