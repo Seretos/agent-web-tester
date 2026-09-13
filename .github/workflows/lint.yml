@@ -65,4 +65,4 @@ jobs:
       - name: Run browser bootstrap driving tests (live)
         env:
           AWT_LIVE_BROWSER: "1"
-        run: xvfb-run --auto-servername python3 tests/test_browser_bootstrap.py
+        run: xvfb-run -a python3 tests/test_browser_bootstrap.py
