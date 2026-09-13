@@ -66,3 +66,19 @@ jobs:
         env:
           AWT_LIVE_BROWSER: "1"
         run: xvfb-run -a python3 tests/test_browser_bootstrap.py
+
+  bddgen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run bddgen step-file driving tests (live)
+        env:
+          AWT_LIVE_BDDGEN: "1"
+        run: python3 tests/test_bddgen_step_files.py

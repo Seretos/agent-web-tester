@@ -27,7 +27,9 @@ use it as your output template.
    URL/route — applying the locator-style and re-scan-reconciliation rules
    below to every element.
 5. Emit or update literal per-element step definitions in `e2e/steps/*.ts`,
-   using `createBdd(test)` and plain instantiation (`const login = new
+   importing `test` and `createBdd` with
+   `import { test, createBdd } from 'playwright-bdd';` and using
+   `createBdd(test)` and plain instantiation (`const login = new
    LoginPage(page)`); write `Then` steps only for clearly assertable state.
 6. Rewrite `e2e/catalog.md` wholesale from the TypeScript on every run: a
    single GitHub-flavoured markdown table with exactly three columns in
@@ -113,6 +115,7 @@ run a scaffold yourself. If detection fails (neither the root nor
 three artifact kinds, and print this exact notice in the summary:
 
 - D1: playwright-bdd not detected — run scaffold-bdd (#3) to make these runnable.
+- D3: If detection succeeds, end the summary with this exact line: playwright-bdd detected (declared, not run) — this scan verified no output; run it yourself: cd e2e && npx bddgen && npx playwright test --config playwright.config.ts — detection only confirms the dependency or config signal is present, never that the emitted files actually run; live verification is deferred to the user or to scaffold-bdd's own self-check (X1).
 
 ## Hard rule: browser install
 
@@ -137,4 +140,5 @@ Every run's printed summary must include, in whatever order reads best:
   locator with its element and reason (L4);
 - every reconciliation change as `old → new` (C4), and every unmatched
   existing entry under `Unmatched existing entries:` (C6);
-- the playwright-bdd detection notice when detection failed (D1).
+- the playwright-bdd detection notice when detection failed (D1);
+- the detected-not-run line when detection succeeded (D3).

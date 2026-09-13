@@ -72,7 +72,9 @@ PINNED_LITERALS = {
                "e2e/fixtures/demo.html, e2e/catalog.md, e2e/.gitignore."),
         ("P2", "P2: Page objects, step definitions, and the catalog reuse "
                "page-scanner's formats verbatim: constructor(private readonly "
-               "page: Page) {}, createBdd(test) plus plain instantiation, and "
+               "page: Page) {}, `import { test, createBdd } from "
+               "'playwright-bdd';` plus createBdd(test) and plain "
+               "instantiation, and "
                "the catalog header | Phrase | Page object | Locator | over "
                "|---|---|---|, so a later page-scanner run reconciles against "
                "them instead of fighting them."),
