@@ -53,8 +53,8 @@ export class TodoPage {
 ### e2e/steps/todo.steps.ts
 
 ```ts
-import { createBdd } from 'playwright-bdd';
-import { test, expect } from '@playwright/test';
+import { test, createBdd } from 'playwright-bdd';
+import { expect } from '@playwright/test';
 import { TodoPage } from '../pages/TodoPage';
 
 const { When, Then } = createBdd(test);

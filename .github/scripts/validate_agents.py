@@ -51,9 +51,11 @@ HARD_RULE_HEADINGS = [
     "## Hard rule: browser install",
 ]
 
-# The 20 pinned literals from plan Amendment A1 (W1-W2, S1-S5, L1-L4,
-# C1-C7, D1-D2 — the enumeration in A6 governs over A6's prose, which
-# mistakenly says 22), keyed by the section
+# The 21 pinned literals from plan Amendment A1 (W1-W2, S1-S5, L1-L4,
+# C1-C7, D1-D3 — the enumeration in A6 governs over A6's prose, which
+# mistakenly says 22; D3 added by ticket #27's playwright-bdd-import fix to
+# narrow page-scanner's detection-success claim to detection-only), keyed
+# by the section
 # heading whose span must contain them. Text and punctuation (including the
 # EM DASH "—", the ARROW "→", and the straight apostrophe "'") are copied
 # verbatim from the plan.
@@ -87,6 +89,7 @@ PINNED_LITERALS = {
     "## Hard rule: playwright-bdd detection": [
         ("D1", "playwright-bdd not detected — run scaffold-bdd (#3) to make these runnable."),
         ("D2", "Detection succeeds if the root package.json or e2e/package.json lists playwright-bdd under dependencies or devDependencies, or a root or e2e/ playwright.config file contains playwright-bdd or defineBddConfig."),
+        ("D3", "If detection succeeds, end the summary with this exact line: playwright-bdd detected (declared, not run) — this scan verified no output; run it yourself: cd e2e && npx bddgen && npx playwright test --config playwright.config.ts — detection only confirms the dependency or config signal is present, never that the emitted files actually run; live verification is deferred to the user or to scaffold-bdd's own self-check (X1)."),
     ],
     # Ticket #25: replaces the former #20 browser-install self-heal handshake
     # (B2-B5, with B3a/B3b as dispatched-branch report/relay lines) -- no

@@ -74,8 +74,7 @@ Feature: Add a todo, complete it, clear completed todos, and sync a password
 ### e2e/steps/recorded.steps.ts
 
 ```ts
-import { createBdd } from 'playwright-bdd';
-import { test } from '@playwright/test';
+import { test, createBdd } from 'playwright-bdd';
 import { RecordedTodoPage } from '../pages/recorded/TodoPage';
 
 const { Given, When } = createBdd(test);

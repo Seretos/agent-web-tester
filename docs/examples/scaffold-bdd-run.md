@@ -22,8 +22,8 @@ lockfile (the M3 standalone fallback).
     "test": "bddgen && playwright test --config playwright.config.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0",
-    "playwright-bdd": "^7.5.0"
+    "@playwright/test": "^1.63.0",
+    "playwright-bdd": "^9.2.1"
   }
 }
 ```
@@ -86,8 +86,8 @@ export class DemoPage {
 ```ts
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { createBdd } from 'playwright-bdd';
-import { test, expect } from '@playwright/test';
+import { test, createBdd } from 'playwright-bdd';
+import { expect } from '@playwright/test';
 import { DemoPage } from '../pages/DemoPage';
 
 const { Given } = createBdd(test);

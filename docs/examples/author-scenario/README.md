@@ -144,8 +144,8 @@ once the preceding fill and click steps have run, not unconditionally.
 never edits it.
 
 ```ts
-import { createBdd } from 'playwright-bdd';
-import { test, expect } from '@playwright/test';
+import { test, createBdd } from 'playwright-bdd';
+import { expect } from '@playwright/test';
 import { SignInPage } from '../pages/SignInPage';
 
 const { When, Then } = createBdd(test);
@@ -179,8 +179,7 @@ expression of its own — it only navigates.
 
 ```ts
 // author-scenario: skill-owned. page-scanner never writes here.
-import { createBdd } from 'playwright-bdd';
-import { test } from '@playwright/test';
+import { test, createBdd } from 'playwright-bdd';
 
 const { Given } = createBdd(test);
 

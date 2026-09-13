@@ -69,8 +69,7 @@ undefined step.
 
 ```ts
 // author-scenario: skill-owned. page-scanner never writes here.
-import { createBdd } from 'playwright-bdd';
-import { test } from '@playwright/test';
+import { test, createBdd } from 'playwright-bdd';
 
 const { When } = createBdd(test);
 
