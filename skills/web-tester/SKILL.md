@@ -23,7 +23,7 @@ Claude-Code-only, convention-discovered feature, so on a host that doesn't
 load them (e.g. Codex), follow the same contract inline instead —
 `agents/page-scanner.md` is the source of the rules and
 `docs/examples/todomvc-scan.md` is the output template.
-If page-scanner's report begins with Browser install starting:, print that line to the user verbatim and immediately re-invoke page-scanner with the same request plus the line browser install approved.
+On Claude Code, browser provisioning happens automatically via this plugin's PreToolUse hook (`hooks/ensure-browser.mjs`) before any browser_* tool call reaches the server; on a hookless host such as Codex, page-scanner's own B3 rule is the fallback — it reports `Browser not provisioned: ` plus the pinned install command instead.
 
 ## Making the catalog runnable: delegate to scaffold-bdd
 

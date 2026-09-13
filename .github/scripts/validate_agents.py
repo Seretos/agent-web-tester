@@ -88,37 +88,29 @@ PINNED_LITERALS = {
         ("D1", "playwright-bdd not detected — run scaffold-bdd (#3) to make these runnable."),
         ("D2", "Detection succeeds if the root package.json or e2e/package.json lists playwright-bdd under dependencies or devDependencies, or a root or e2e/ playwright.config file contains playwright-bdd or defineBddConfig."),
     ],
-    # Ticket #20: folds the former standalone "### Bootstrap" paragraph into
-    # B1 and adds the browser-install self-heal handshake (B2-B5, with B3a/
-    # B3b as the dispatched-branch report/relay lines). Seven literals total.
+    # Ticket #25: replaces the former #20 browser-install self-heal handshake
+    # (B2-B5, with B3a/B3b as dispatched-branch report/relay lines) -- no
+    # install-capable tool exists on the live server, so provisioning moved
+    # to this plugin's own PreToolUse hook (hooks/ensure-browser.mjs). Three
+    # literals total.
     "## Hard rule: browser install": [
-        ("B1", 'Before calling any browser tool, call ToolSearch(query="select:browser_install,browser_navigate,browser_snapshot,browser_click,browser_type,browser_fill_form,browser_evaluate", max_results=10) to load the deferred playwright MCP tool schemas into this turn — they are not directly callable until fetched this way.'),
-        ("B2", "If a browser tool fails because the browser binary is missing, the fix is the playwright MCP server's own browser_install tool — never a shell command handed back to the user, and never a suggestion to run npx @playwright/mcp install-browser, whose freshly resolved version is not guaranteed to match the revision the running pinned server expects."),
-        ("B3", "Which branch you take depends on where you are running, and there are exactly two. Dispatched branch — you were invoked as the page-scanner subagent and this request does not carry the line browser install approved: do not call browser_install yet, stop the scan at once and make your entire final report the two lines below, verbatim, because your mid-turn text is buffered behind the subagent boundary and would reach the user only after the download had finished. Inline branch — you are following these rules inline in the user's own turn, with no subagent boundary, or the request already carries browser install approved: never stop, go straight to B4 in this same turn."),
-        ("B3a", "Browser install starting: the browser build this playwright MCP server expects is not installed on this machine, so it is being downloaded now — about 310 MiB, which can take a minute or two. Nothing is needed from you; the scan resumes by itself when the download finishes."),
-        ("B3b", "Relay the line above to the user verbatim, then immediately re-invoke page-scanner with the same request plus the line: browser install approved. Do not ask the user for permission — the relay exists so the user knows why the next call blocks, not to request consent."),
-        ("B4", "On the inline branch of B3: if you are running inline with no subagent boundary, first print the B3a line yourself, so the user reads it before the blocking call starts. Then, on either entry into B4, call browser_install, retry the failed call once, continue the scan, and report the download in the summary on one line prefixed Browser install: ."),
-        ("B5", "If browser_install itself fails, stop and report its error verbatim — never retry it in a loop and never fall back to a shell command."),
+        ("B1", 'Before calling any browser tool, call ToolSearch(query="select:browser_navigate,browser_snapshot,browser_click,browser_type,browser_fill_form,browser_evaluate", max_results=10) to load the deferred playwright MCP tool schemas into this turn — they are not directly callable until fetched this way.'),
+        ("B2", "Provisioning the browser binary happens automatically, before this turn starts: this plugin's PreToolUse hook (`hooks/ensure-browser.mjs`) runs ahead of every browser_* tool call and installs the pinned build if it is missing — there is no install-capable tool in the server's own tool surface to call instead."),
+        ("B3", "If a browser tool still fails with a missing-browser error — this happens on hosts that do not run Claude Code hooks, such as Codex — stop the scan at once, resolve the pinned version by reading `.claude-plugin/plugin.json`'s `mcpServers.playwright.args` for its `@playwright/mcp@<version>` entry (the same value `hooks/ensure-browser.mjs` itself parses out of that file) rather than printing a template placeholder, and report `Browser not provisioned: <server error verbatim>` followed by the install command with that resolved version substituted in (`npx -y @playwright/mcp@<resolved version> install-browser chrome-for-testing`); never retry it in a loop and never fall back to some other shell command."),
     ],
 }
 
-# Body-level (outside any '## Hard rule:' span) pinned literal: the
-# Summary-checklist bullet ticket #20 adds for a run that installed the
-# browser build. '### Summary checklist' sits outside every hard-rule span,
-# so PINNED_LITERALS (keyed by hard-rule heading) cannot reach it -- same
-# pattern as DOM_SCRAPING_PROHIBITION and the ToolSearch bootstrap check.
-CHECKLIST_BROWSER_INSTALL_BULLET = (
-    "- the Browser install: line when this run downloaded the browser build (B4);"
-)
-
-# The relay sentence ticket #20 adds to skills/web-tester/SKILL.md's
-# existing page-scanner delegation section -- the dispatcher half of the
-# B3/B3b handshake (page-scanner's own final report is the dispatched
-# half).
-SKILL_RELAY_LITERAL = (
-    "If page-scanner's report begins with Browser install starting:, print "
-    "that line to the user verbatim and immediately re-invoke page-scanner "
-    "with the same request plus the line browser install approved"
+# Ticket #25: the SKILL.md line naming this plugin's PreToolUse hook as the
+# Claude-Code provisioning mechanism, with page-scanner's B3 report as the
+# Codex (hookless-host) fallback -- replaces the #20 dispatcher-relay
+# sentence now that provisioning happens in hooks/ensure-browser.mjs
+# instead of a page-scanner-driven browser_install handshake.
+SKILL_HOOK_PROVISIONING_LITERAL = (
+    "On Claude Code, browser provisioning happens automatically via this "
+    "plugin's PreToolUse hook (`hooks/ensure-browser.mjs`) before any "
+    "browser_* tool call reaches the server; on a hookless host such as "
+    "Codex, page-scanner's own B3 rule is the fallback — it reports "
+    "`Browser not provisioned: ` plus the pinned install command instead."
 )
 
 # Not one of A1's 20 enumerated pinned literals, but pinned here so the
@@ -345,20 +337,17 @@ def check_agent_body_contract(failures, agent_text):
             f"{rel(AGENT_FILE)}: body is missing the DOM-scraping prohibition literal: "
             f"{DOM_SCRAPING_PROHIBITION!r}"
         )
-    # Ticket #20: the former Bootstrap paragraph folded into B1 must still
-    # load browser_install alongside the pre-existing tool names -- a bare
-    # 'ToolSearch(query="select:' substring match would pass even if
-    # browser_install were absent from the select list, so this resolves
-    # the actual select-list argument and checks its members.
+    # Ticket #25: the select list must resolve the real browser_* tool
+    # schemas but must NEVER include 'browser_install' again -- no such tool
+    # exists on the live server (this ticket's whole premise), and the
+    # test_documented_browser_tools_exist_live driving test would otherwise
+    # fail the moment this file names a tool the live server doesn't have.
     toolsearch_match = re.search(r'ToolSearch\(query="select:([^"]*)"', body)
     if not toolsearch_match:
         failures.append(f'{rel(AGENT_FILE)}: body missing the ToolSearch(query="select:...") bootstrap paragraph')
-    elif "browser_install" not in [t.strip() for t in toolsearch_match.group(1).split(",")]:
-        failures.append(f"{rel(AGENT_FILE)}: ToolSearch select list does not include 'browser_install'")
-
-    if CHECKLIST_BROWSER_INSTALL_BULLET not in body:
+    elif "browser_install" in [t.strip() for t in toolsearch_match.group(1).split(",")]:
         failures.append(
-            f"{rel(AGENT_FILE)}: summary checklist is missing the 'Browser install: ' bullet"
+            f"{rel(AGENT_FILE)}: ToolSearch select list must not include the removed 'browser_install' tool"
         )
 
 
@@ -400,13 +389,22 @@ def check_release_staging(failures):
 
     agents_re = re.compile(r'cp\s+-a\s+agents\b.*"\$STAGE/')
     docs_re = re.compile(r'cp\s+-a\s+docs\b.*"\$STAGE/')
+    # Ticket #25: hooks/ ships the same way agents/ and docs/ do -- each of
+    # these needed its own explicit cp -a line (unlike skills/, staged
+    # wholesale) because Claude Code's PreToolUse hook loading needs
+    # hooks/hooks.json + hooks/ensure-browser.mjs present on the installed
+    # release tree, not just in this source checkout.
+    hooks_re = re.compile(r'cp\s+-a\s+hooks\b.*"\$STAGE/')
     agents_pos = _find_live_cp_match(agents_re, stage_text)
     docs_pos = _find_live_cp_match(docs_re, stage_text)
+    hooks_pos = _find_live_cp_match(hooks_re, stage_text)
 
     if agents_pos is None:
         failures.append("release.yml: stage step does not copy agents/ into the staging tree")
     if docs_pos is None:
         failures.append("release.yml: stage step does not copy docs/ into the staging tree")
+    if hooks_pos is None:
+        failures.append("release.yml: stage step does not copy hooks/ into the staging tree")
 
     zip_idx = stage_text.find("zip -r")
     if zip_idx != -1:
@@ -414,6 +412,8 @@ def check_release_staging(failures):
             failures.append("release.yml: agents/ copy appears after 'zip -r', must precede it")
         if docs_pos is not None and docs_pos > zip_idx:
             failures.append("release.yml: docs/ copy appears after 'zip -r', must precede it")
+        if hooks_pos is not None and hooks_pos > zip_idx:
+            failures.append("release.yml: hooks/ copy appears after 'zip -r', must precede it")
 
     # Note: deliberately no separate "agents/ and docs/ directories exist on
     # disk" assertion here. check_agent_frontmatter's AGENT_FILE.is_file()
@@ -454,18 +454,20 @@ def check_agents_md_contracts(failures):
             f'(expected literal "{subagent_literal}")'
         )
 
-    # Ticket #20: the version-skew trap (a freshly resolved
-    # 'npx @playwright/mcp install-browser' is not guaranteed to match the
-    # revision the running pinned server expects) must stay attached to the
-    # same bullet that already names browser_install -- nothing currently
-    # stops that trap being deleted from the '--browser chromium' bullet
-    # while the unrelated browser_install mention survives elsewhere.
-    install_browser_bullet_found = any(
-        "browser_install" in line and "install-browser" in line for line in bullet_lines
-    )
-    if not install_browser_bullet_found:
+    # Ticket #25: the '--browser chromium' bullet must name the real
+    # provisioning mechanism (this plugin's own PreToolUse hook) and the
+    # Codex hand-off contract -- replaces the #20 browser_install /
+    # "do not add a provisioning script" claims, which named a tool that
+    # does not exist on the live server.
+    hook_bullet_found = any("hooks/ensure-browser.mjs" in line for line in bullet_lines)
+    if not hook_bullet_found:
         failures.append(
-            f"{rel(AGENTS_MD)}: missing the install-browser version-skew trap bullet"
+            f"{rel(AGENTS_MD)}: missing the bullet naming 'hooks/ensure-browser.mjs' as the provisioning mechanism"
+        )
+
+    if "Browser not provisioned: " not in text:
+        failures.append(
+            f"{rel(AGENTS_MD)}: missing the 'Browser not provisioned: ' hand-off contract literal"
         )
 
 
@@ -474,22 +476,20 @@ def check_agents_md_contracts(failures):
 # ---------------------------------------------------------------------------
 
 def check_skill_relay_contract(failures):
-    """The dispatcher half of the B3/B3b browser-install handshake: when
-    page-scanner's report begins with 'Browser install starting:' (the
-    dispatched branch stopping to report, per B3/B3a), the host that
-    dispatched it must relay that line verbatim and immediately re-invoke
-    page-scanner with 'browser install approved' appended -- never asking
-    the user for permission first. Lives in SKILL.md because that is the
-    file that defines delegation; page-scanner.md's own B3b is the
-    dispatched side of the same handshake."""
+    """Ticket #25: SKILL.md must name this plugin's PreToolUse hook as the
+    Claude-Code provisioning mechanism, with page-scanner's B3 report as the
+    Codex (hookless-host) fallback -- replaces the #20 dispatcher-relay
+    handshake ('Browser install starting:' / 'browser install approved'),
+    which existed only because the (nonexistent) browser_install tool used
+    to require page-scanner to stop and report before calling it."""
     if not WEB_TESTER_FILE.is_file():
         failures.append(f"{rel(WEB_TESTER_FILE)}: file not found")
         return
 
     text = WEB_TESTER_FILE.read_text(encoding="utf-8").replace("\r\n", "\n")
-    if SKILL_RELAY_LITERAL not in text:
+    if SKILL_HOOK_PROVISIONING_LITERAL not in text:
         failures.append(
-            f"{rel(WEB_TESTER_FILE)}: missing the browser-install relay literal"
+            f"{rel(WEB_TESTER_FILE)}: missing the hook-provisioning/Codex-fallback literal"
         )
 
 
