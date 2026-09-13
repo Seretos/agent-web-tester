@@ -133,6 +133,10 @@ jobs:
           # docs/ ships so page-scanner.md's worked-example link resolves
           # for installed users, not just in this source checkout.
           [ -d docs ] && cp -a docs "$STAGE/" || true
+          # hooks/ ships so Claude Code's PreToolUse hook loading
+          # (hooks/hooks.json -> hooks/ensure-browser.mjs) provisions the
+          # browser for installed users, not just in this source checkout.
+          [ -d hooks ] && cp -a hooks "$STAGE/" || true
 
           mkdir -p dist
           ZIPNAME="agent-web-tester-${{ inputs.version }}.zip"
