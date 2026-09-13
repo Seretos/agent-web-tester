@@ -15,9 +15,12 @@ hash); that ``lint.yml`` is wired to this validator and the old
 single-skill frontmatter heredoc step is gone (narrowly scoped -- see
 ``check_lint_workflow_wiring``'s own docstring for why); and that
 ``release.yml``'s staging step already copies both ``assets/`` and
-``description.md`` into the install tree, and the marketplace dispatch
-payload's URL tails resolve (a regression pin on already-correct behaviour,
-not a production gap).
+``description.md`` into the install tree, that the dispatch step invokes
+``.github/scripts/marketplace-payload.sh`` (which builds the
+``client_payload`` since work package #21, replacing an inline heredoc), and
+that the marketplace dispatch payload's URL tails still resolve from within
+that script (a regression pin on already-correct behaviour, not a
+production gap).
 
 Usage:
     python .github/scripts/validate_release_docs.py     (local, Windows or *nix)
@@ -63,6 +66,7 @@ AGENTS_MD = REPO_ROOT / "AGENTS.md"
 WEB_TESTER_FILE = SKILLS_DIR / "web-tester" / "SKILL.md"
 LINT_YML = REPO_ROOT / ".github" / "workflows" / "lint.yml"
 RELEASE_YML = REPO_ROOT / ".github" / "workflows" / "release.yml"
+MARKETPLACE_PAYLOAD_SH = REPO_ROOT / ".github" / "scripts" / "marketplace-payload.sh"
 ICON_FILE = REPO_ROOT / "assets" / "icon.png"
 
 
@@ -891,12 +895,31 @@ def check_release_staging_marketplace_artifacts(failures):
         return
     dispatch_text = dispatch_match.group(0)
 
-    for tail in ("/assets/icon.png", "/description.md"):
-        if _find_live_cp_match(re.compile(re.escape(tail)), dispatch_text) is None:
-            failures.append(
-                f"{rel(RELEASE_YML)}: no *live* line in the dispatch step carries the URL tail "
-                f"{tail!r} (a commented-out line does not count)"
-            )
+    # #21 moved the client_payload build (including the icon/description_url
+    # construction) out of this step's inline heredoc and into
+    # marketplace-payload.sh (jq -n, so a hostile multi-line changelog can't
+    # break the JSON) -- so the URL tails no longer live as literal text in
+    # release.yml itself. The regression this check guards against (the
+    # marketplace URLs silently stop resolving) is still real; it just needs
+    # checking in the new location, plus proof the dispatch step actually
+    # wires up to that script instead of quietly reverting to an inline
+    # heredoc.
+    if _find_live_cp_match(re.compile(r"marketplace-payload\.sh"), dispatch_text) is None:
+        failures.append(
+            f"{rel(RELEASE_YML)}: the dispatch step does not invoke "
+            "marketplace-payload.sh (a commented-out line does not count)"
+        )
+
+    if not MARKETPLACE_PAYLOAD_SH.is_file():
+        failures.append(f"{rel(MARKETPLACE_PAYLOAD_SH)}: file not found")
+    else:
+        payload_text = MARKETPLACE_PAYLOAD_SH.read_text(encoding="utf-8").replace("\r\n", "\n")
+        for tail in ("/assets/icon.png", "/description.md"):
+            if _find_live_cp_match(re.compile(re.escape(tail)), payload_text) is None:
+                failures.append(
+                    f"{rel(MARKETPLACE_PAYLOAD_SH)}: no *live* line builds the URL tail "
+                    f"{tail!r} (a commented-out line does not count)"
+                )
 
 
 def main():
