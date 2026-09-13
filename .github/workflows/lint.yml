@@ -33,3 +33,18 @@ jobs:
 
       - name: Validate record-scenario skill package
         run: python3 .github/scripts/validate_record.py
+
+  release-scripts:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Run release-script tests
+        run: python tests/test_release_scripts.py
