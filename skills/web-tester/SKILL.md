@@ -23,6 +23,7 @@ Claude-Code-only, convention-discovered feature, so on a host that doesn't
 load them (e.g. Codex), follow the same contract inline instead —
 `agents/page-scanner.md` is the source of the rules and
 `docs/examples/todomvc-scan.md` is the output template.
+If page-scanner's report begins with Browser install starting:, print that line to the user verbatim and immediately re-invoke page-scanner with the same request plus the line browser install approved.
 
 ## Making the catalog runnable: delegate to scaffold-bdd
 
