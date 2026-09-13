@@ -16,13 +16,6 @@ See the worked example: [docs/examples/todomvc-scan.md](../docs/examples/todomvc
 for the exact output shape one scan of a well-known public page produces —
 use it as your output template.
 
-### Bootstrap
-
-Before calling any browser tool, call
-`ToolSearch(query="select:browser_navigate,browser_snapshot,browser_click,browser_type,browser_fill_form,browser_evaluate", max_results=10)`
-to load the deferred `playwright` MCP tool schemas into this turn — they are
-not directly callable until fetched this way.
-
 ### Scanning and emission pipeline
 
 1. Navigate to the target URL with `browser_navigate`.
@@ -121,6 +114,17 @@ three artifact kinds, and print this exact notice in the summary:
 
 - D1: playwright-bdd not detected — run scaffold-bdd (#3) to make these runnable.
 
+## Hard rule: browser install
+
+- B1: Before calling any browser tool, call ToolSearch(query="select:browser_install,browser_navigate,browser_snapshot,browser_click,browser_type,browser_fill_form,browser_evaluate", max_results=10) to load the deferred playwright MCP tool schemas into this turn — they are not directly callable until fetched this way.
+- B2: If a browser tool fails because the browser binary is missing, the fix is the playwright MCP server's own browser_install tool — never a shell command handed back to the user, and never a suggestion to run npx @playwright/mcp install-browser, whose freshly resolved version is not guaranteed to match the revision the running pinned server expects.
+- B3: Which branch you take depends on where you are running, and there are exactly two. Dispatched branch — you were invoked as the page-scanner subagent and this request does not carry the line browser install approved: do not call browser_install yet, stop the scan at once and make your entire final report the two lines below, verbatim, because your mid-turn text is buffered behind the subagent boundary and would reach the user only after the download had finished. Inline branch — you are following these rules inline in the user's own turn, with no subagent boundary, or the request already carries browser install approved: never stop, go straight to B4 in this same turn.
+  - B3a: Browser install starting: the browser build this playwright MCP server expects is not installed on this machine, so it is being downloaded now — about 310 MiB, which can take a minute or two. Nothing is needed from you; the scan resumes by itself when the download finishes.
+  - B3b: Relay the line above to the user verbatim, then immediately re-invoke page-scanner with the same request plus the line: browser install approved. Do not ask the user for permission — the relay exists so the user knows why the next call blocks, not to request consent.
+  - Note for a reader of this file alone: B3a is the exact line relayed to the end user; B3b documents the required next action for whoever reads this report (the dispatcher). The actual relay mechanics — printing B3a and re-invoking page-scanner — are implemented in `skills/web-tester/SKILL.md`, not by anything here parsing B3b's text by name.
+- B4: On the inline branch of B3: if you are running inline with no subagent boundary, first print the B3a line yourself, so the user reads it before the blocking call starts. Then, on either entry into B4, call browser_install, retry the failed call once, continue the scan, and report the download in the summary on one line prefixed Browser install: .
+- B5: If browser_install itself fails, stop and report its error verbatim — never retry it in a loop and never fall back to a shell command.
+
 ### Page-object split trigger
 
 One page object per URL/route (e.g. `TodoPage.ts`). Split into
@@ -139,3 +143,4 @@ Every run's printed summary must include, in whatever order reads best:
 - every reconciliation change as `old → new` (C4), and every unmatched
   existing entry under `Unmatched existing entries:` (C6);
 - the playwright-bdd detection notice when detection failed (D1).
+- the Browser install: line when this run downloaded the browser build (B4);
